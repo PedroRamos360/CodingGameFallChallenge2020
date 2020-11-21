@@ -12,13 +12,16 @@ class action:
         self.action_type = action_type
         self.delta = delta
         self.proximity_to_brew = 0
+        self.items_won = 0
 
 def sort_by_price(object):
     return object.price
 
-
 def sort_by_proximity_to_brew(object):
     return object.proximity_to_brew
+
+def sort_by_items_won(object):
+    return object.items_won
 
 # Quantidade de vezes que o bot aprendeu um feitiço
 learned_times = 0
@@ -109,6 +112,7 @@ while True:
     brews.sort(key=sort_by_price)
 
     # Varre os learns e associa um proximity_to_brew para ser usado futuramente
+    # LEARNS
     for learn in learns:
         inventory_after_learn = []
         for i in range(4):
@@ -130,6 +134,7 @@ while True:
         learn.proximity_to_brew = proximity_to_brew
 
     # Varre cada brew em brews e verifica qual deles é possível fazer com os ingredientes
+    # BREWS
     if not learned:
         good_brews = []
         for brew in brews:
@@ -149,6 +154,7 @@ while True:
 
 
     # Se na rodada anterior ele descansou e não há poções a serem feitas ele procurará um feitiço que pode ser executado
+    # CASTS
     if not learned and not brewed:
         good_casts = []
         for cast in casts:
@@ -176,14 +182,16 @@ while True:
             )
             if not insufficient_items and not too_much_items and not insufficient_space:
                 good_casts.append(cast)
+                brew = brews[-1]
 
-                # Calcula a proximidade que o feitiço vai deixar o bot de fazer a poção
+                # Calcula a proximidade que o feitiço vai deixar o bot de fazer a poção (proximity_to_brew)
                 # Compara cada elemento do inventário (novo depois do spell ser feito) com cada elemento da poção
+                # OTIMIZAR COM FOR
                 inventory_after_spell_compared_to_brew = [
-                    inventory_after_spell[0] + brews[-1].delta[0],
-                    inventory_after_spell[1] + brews[-1].delta[1],
-                    inventory_after_spell[2] + brews[-1].delta[2],
-                    inventory_after_spell[3] + brews[-1].delta[3]                   
+                    inventory_after_spell[0] + brew.delta[0],
+                    inventory_after_spell[1] + brew.delta[1],
+                    inventory_after_spell[2] + brew.delta[2],
+                    inventory_after_spell[3] + brew.delta[3]                   
                 ]
 
                 # Soma os números negativos para ver quanto falta até chegar ao feitiço
@@ -193,12 +201,27 @@ while True:
                         proximity_to_brew += number
                 
                 cast.proximity_to_brew = proximity_to_brew
-                print(cast.proximity_to_brew, cast.action_id, file=sys.stderr)
+
+                # Calcula quantos itens serão recebidos com o feitiço para critério de desempate caso as
+                # proximidades sejam iguais
+                items_won = 0
+                for i in range(len(cast.delta)):
+                    items_won += cast.delta[i] * (4/(i + 1))
+                
+                cast.items_won = items_won
+                print(cast.proximity_to_brew, cast.items_won, cast.action_id, file=sys.stderr)
         
         good_casts.sort(key=sort_by_proximity_to_brew)
+        lowest_proximity_to_brew = good_casts[-1].proximity_to_brew
+        lowest_casts = []
+        for cast in good_casts:
+            if cast.proximity_to_brew == lowest_proximity_to_brew:
+                lowest_casts.append(cast)
+        
+        lowest_casts.sort(key=sort_by_items_won)
 
         if good_casts != []:
-            cast = good_casts[-1]
+            cast = lowest_casts[-1]
 
             # Pega o primeiro item dos learns (que é de graça)
             learn = learns[0]
