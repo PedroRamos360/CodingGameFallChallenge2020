@@ -13,6 +13,8 @@ class action:
         self.delta = delta
         self.proximity_to_brew = 0
         self.items_won = 0
+        self.worth_learning = False
+        self.price_to_learn = 0
 
 def sort_by_price(object):
     return object.price
@@ -87,7 +89,7 @@ while True:
     learn_id = 0
 
     # Se não for aprendido a quantidade certa de spells aprender mais um
-    if learned_times < 5:
+    if learned_times < 0:
         learned_times += 1
         learned = True
         learn_id = learns[0].action_id
@@ -111,27 +113,42 @@ while True:
     # Organiza as brews por sort_by_price
     brews.sort(key=sort_by_price)
 
-    # Varre os learns e associa um proximity_to_brew para ser usado futuramente
+    # Varre os learns e associa worth_learning para ver se algum dos feitiços vale a pena aprender
     # LEARNS
-    for learn in learns:
-        inventory_after_learn = []
-        for i in range(4):
-            inventory_after_learn.append(learn.delta[i] + inventory[i])
+    for learn_index in range(len(learns)):
+        learn = learns[learn_index]
+        learn.price_to_learn = learn_index
+        
+        average_tier_offered = 0
+        average_tier_gained = 0
 
-        # Cálcula a proximidade que o feitiço a aprender vai deixar o bot de fazer a poção
-        inventory_after_learn_compared_to_brew = [
-            inventory_after_learn[0] + brews[-1].delta[0],
-            inventory_after_learn[1] + brews[-1].delta[1],
-            inventory_after_learn[2] + brews[-1].delta[2],
-            inventory_after_learn[3] + brews[-1].delta[3]                    
-        ]
+        items_offered = 0
+        items_gained = 0
+        for delta_index in range(len(learn.delta)):
+            delta = learn.delta[delta_index]
 
-        proximity_to_brew = 0
-        for number in inventory_after_learn_compared_to_brew:
-            if number < 0:
-                proximity_to_brew += number
+            if delta > 0:
+                # Mutliplica a quantidade de elementos oferecidos pelo tier para ser extraído uma média do tier
+                average_tier_gained += (delta * (delta_index + 1))
 
-        learn.proximity_to_brew = proximity_to_brew
+                # Soma os positivos no delta (itens recebidos)
+                items_gained += delta
+            elif delta < 0:
+                # Mutliplica a quantidade de elementos oferecidos pelo tier para ser extraído uma média do tier
+                average_tier_offered += (delta * (delta_index + 1)) * -1
+
+                # Soma os negativos no delta (itens oferecidos)
+                items_offered += delta
+        
+        
+        if items_offered == 0:
+            learn.worth_learning = True
+        else:
+            average_tier_offered /= items_offered * -1
+            average_tier_gained /= items_gained
+            if average_tier_offered + 1 < average_tier_gained:
+                learn.worth_learning = True
+        
 
     # Varre cada brew em brews e verifica qual deles é possível fazer com os ingredientes
     # BREWS
@@ -209,7 +226,6 @@ while True:
                     items_won += cast.delta[i] * (4/(i + 1))
                 
                 cast.items_won = items_won
-                print(cast.proximity_to_brew, cast.items_won, cast.action_id, file=sys.stderr)
         
         good_casts.sort(key=sort_by_proximity_to_brew)
         lowest_proximity_to_brew = good_casts[-1].proximity_to_brew
@@ -221,13 +237,15 @@ while True:
         lowest_casts.sort(key=sort_by_items_won)
 
         if good_casts != []:
+            good_learns = []
+            for learn in learns:
+                if learn.worth_learning and learn.price_to_learn <= 3 and inventory[0] >= learn.price_to_learn:
+                    good_learns.append(learn)
+
             cast = lowest_casts[-1]
 
-            # Pega o primeiro item dos learns (que é de graça)
-            learn = learns[0]
-
-            if learn.proximity_to_brew > cast.proximity_to_brew:
-                learn_id = learn.action_id
+            if good_learns != []:
+                learn_id = good_learns[0].action_id
                 learned = True
             elif cast.castable:
                 cast_id = cast.action_id
