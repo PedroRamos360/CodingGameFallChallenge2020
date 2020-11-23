@@ -1,4 +1,4 @@
-# CodingGameFallChallenge2020
+# CodingGame Fall Challenge 2020
 Code referent to my bot at the Coding Game Fall Challenge in 2020
 
 Bot score:
