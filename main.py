@@ -5,16 +5,18 @@ import math
 # the standard input according to the problem statement.
 
 class action:
-    def __init__(self, action_id, action_type, price, castable, delta):
+    def __init__(self, action_id, action_type, price, castable, repeatable, delta):
         self.action_id = action_id
         self.price = price
         self.castable = castable
+        self.repeatable = repeatable
         self.action_type = action_type
         self.delta = delta
         self.proximity_to_brew = 0
         self.items_won = 0
         self.worth_learning = False
         self.price_to_learn = 0
+        self.inventory_after_spell = []
 
 def sort_by_price(object):
     return object.price
@@ -25,8 +27,6 @@ def sort_by_proximity_to_brew(object):
 def sort_by_items_won(object):
     return object.items_won
 
-# Quantidade de vezes que o bot aprendeu um feitiço
-learned_times = 0
 # game loop
 while True:
     action_count = int(input())  # the number of spells and recipes in play
@@ -59,7 +59,7 @@ while True:
         castable = castable != "0"
         repeatable = repeatable != "0"
 
-        action_n = action(action_id, action_type, price, castable, [delta_0, delta_1, delta_2, delta_3])
+        action_n = action(action_id, action_type, price, castable, repeatable, [delta_0, delta_1, delta_2, delta_3])
         actions.append(action_n)
     for i in range(2):
         # inv_0: tier-0 ingredients in inventory
@@ -88,11 +88,8 @@ while True:
     cast_id = 0
     learn_id = 0
 
-    # Se não for aprendido a quantidade certa de spells aprender mais um
-    if learned_times < 0:
-        learned_times += 1
-        learned = True
-        learn_id = learns[0].action_id
+    # Quantidade de vezes que um feitiço deve ser executado (padrão = 1)
+    times_to_cast = 1
 
     # Associa um proximiy_to_brew em cada brew
     for brew in brews:
@@ -178,38 +175,32 @@ while True:
             inventory_after_spell = []
             for i in range(4):
                 inventory_after_spell.append(cast.delta[i] + inventory[i])
-
+            
+            cast.inventory_after_spell = inventory_after_spell
             inventory_sum = 0
             for item in inventory_after_spell:
                 inventory_sum += item
 
             insufficient_space = inventory_sum > 10
  
-            too_much_items = (
-                inventory_after_spell[0] > 3 or
-                inventory_after_spell[1] > 5 or
-                inventory_after_spell[2] > 5 or
-                inventory_after_spell[3] > 5 
-            )
             insufficient_items = (
                 inventory_after_spell[0] < 0 or
                 inventory_after_spell[1] < 0 or
                 inventory_after_spell[2] < 0 or
                 inventory_after_spell[3] < 0 
             )
-            if not insufficient_items and not too_much_items and not insufficient_space:
+            if not insufficient_items and not insufficient_space:
                 good_casts.append(cast)
                 brew = brews[-1]
 
                 # Calcula a proximidade que o feitiço vai deixar o bot de fazer a poção (proximity_to_brew)
                 # Compara cada elemento do inventário (novo depois do spell ser feito) com cada elemento da poção
-                # OTIMIZAR COM FOR
-                inventory_after_spell_compared_to_brew = [
-                    inventory_after_spell[0] + brew.delta[0],
-                    inventory_after_spell[1] + brew.delta[1],
-                    inventory_after_spell[2] + brew.delta[2],
-                    inventory_after_spell[3] + brew.delta[3]                   
-                ]
+                inventory_after_spell_compared_to_brew = []
+
+                for i in range(len(brew.delta)):
+                    inventory_after_spell_compared_to_brew.append(
+                        inventory_after_spell[i] + brew.delta[i]
+                    )
 
                 # Soma os números negativos para ver quanto falta até chegar ao feitiço
                 proximity_to_brew = 0
@@ -243,6 +234,38 @@ while True:
                     good_learns.append(learn)
 
             cast = lowest_casts[-1]
+            # if cast.repeatable:
+            #     print("repeatable", file=sys.stderr)
+            #     for times_to_repeat in range(3):
+            #         # Cálcula o proximity to brew para cada quantidade de vezes que o feitiço for repetido
+            #         inventory_after_spell_compared_to_brew = []
+
+            #         for i in range(len(brew.delta)):
+            #             inventory_after_spell_compared_to_brew.append(
+            #                 cast.inventory_after_spell[i] + brew.delta[i] * times_to_repeat
+            #             )
+
+            #         proximity_to_brew = 0
+            #         for number in inventory_after_spell_compared_to_brew:
+            #             if number < 0:
+            #                 proximity_to_brew += number
+                    
+            #         inventory_sum = 0
+            #         for item in inventory_after_spell_compared_to_brew:
+            #             inventory_sum += item
+
+            #         insufficient_space = inventory_sum > 10
+                    
+            #         insufficient_ingredients = (
+            #             inventory_after_spell_compared_to_brew[0] < 0 or
+            #             inventory_after_spell_compared_to_brew[1] < 0 or
+            #             inventory_after_spell_compared_to_brew[2] < 0 or
+            #             inventory_after_spell_compared_to_brew[3] < 0 
+            #         )
+
+            #         print(insufficient_space, insufficient_ingredients, file=sys.stderr)
+            #         if not insufficient_space and not insufficient_space:
+            #             times_to_cast = times_to_repeat
 
             if good_learns != []:
                 learn_id = good_learns[0].action_id
@@ -261,7 +284,7 @@ while True:
     elif rested:
         print("REST")
     elif casted:
-        print("CAST {}".format(cast_id))
+        print("CAST {} {}".format(cast_id, times_to_cast))
     else:
         print("WAIT")
 
